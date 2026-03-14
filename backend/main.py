@@ -4,13 +4,47 @@ from sqlmodel import Session, select
 from typing import List, Optional
 import json
 import os
-from datetime import datetime
+import random
+from datetime import datetime, timedelta
+from pathlib import Path
 
 from database import get_session, init_db, engine
 from models import LotteryResult, Prediction, ApiResponse
 
 # 創建 FastAPI 應用
 app = FastAPI(title="台灣彩券539 API")
+
+# 天干地支對應
+HEAVENLY_STEMS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸']
+EARTHLY_BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥']
+
+# 傳統吉時 (根據天干地支)
+LUCKY_HOURS = {
+    '甲': [7, 9, 11],
+    '乙': [6, 8, 10],
+    '丙': [9, 11, 13],
+    '丁': [8, 10, 12],
+    '戊': [7, 9, 11],
+    '己': [6, 8, 10],
+    '庚': [9, 11, 15],
+    '辛': [8, 10, 14],
+    '壬': [7, 11, 13],
+    '癸': [6, 10, 12]
+}
+
+# 吉號對應 (根據天干)
+LUCKY_NUMBERS = {
+    '甲': [1, 13, 25, 37],
+    '乙': [2, 14, 26, 38],
+    '丙': [3, 15, 27, 39],
+    '丁': [4, 16, 28],
+    '戊': [5, 17, 29],
+    '己': [6, 18, 30],
+    '庚': [7, 19, 31],
+    '辛': [8, 20, 32],
+    '壬': [9, 21, 33],
+    '癸': [10, 22, 34]
+}
 
 # 配置 CORS
 app.add_middleware(
@@ -285,6 +319,187 @@ def save_prediction(
     return ApiResponse(success=True, message="預測已儲存", data={"id": prediction.id})
 
 
+# ============ 天干地支預測 API ============
+
+def get_tiangan_dizhi(date=None):
+    """取得指定日期的天干地支"""
+    if date is None:
+        date = datetime.now()
+    
+    year = date.year
+    
+    # 計算天干 (以1984年為基準甲子年)
+    tg_idx = (year - 1984) % 10
+    # 計算地支
+    dz_idx = (year - 1984) % 12
+    
+    return HEAVENLY_STEMS[tg_idx], EARTHLY_BRANCHES[dz_idx], year
+
+def get_lucky_hour(tg):
+    """根據天干取得吉時"""
+    return LUCKY_HOURS.get(tg, [9, 11, 13])
+
+def is_draw_day(date):
+    """檢查是否為開獎日 (星期一至六，星期日不開獎)"""
+    return date.weekday() != 6
+
+def get_best_prediction_time(date=None):
+    """計算最佳預測時間"""
+    if date is None:
+        date = datetime.now()
+    
+    # 如果當天不是開獎日，找下一個開獎日
+    while not is_draw_day(date):
+        date = date + timedelta(days=1)
+    
+    tg, dz, year = get_tiangan_dizhi(date)
+    lucky_hours = get_lucky_hour(tg)
+    
+    current_hour = date.hour
+    
+    # 找下一個最近的吉時
+    best_hour = None
+    for hour in lucky_hours:
+        if hour > current_hour:
+            best_hour = hour
+            break
+    
+    # 如果沒有未來的吉時，使用第一個吉時
+    if best_hour is None:
+        best_hour = lucky_hours[0]
+        date = date + timedelta(days=1)
+        # 確保新日期是開獎日
+        while not is_draw_day(date):
+            date = date + timedelta(days=1)
+    
+    prediction_time = date.replace(hour=best_hour, minute=0, second=0, microsecond=0)
+    
+    return {
+        'date': date.strftime('%Y-%m-%d'),
+        'time': f'{best_hour:02d}:00',
+        'tiangan': tg,
+        'dizhi': dz,
+        'lucky_hours': lucky_hours,
+        'is_draw_day': is_draw_day(date)
+    }
+
+def generate_tiangan_prediction_numbers():
+    """生成天干地支預測號碼"""
+    # 模擬熱門號碼 (實際應從資料庫獲取)
+    hot_numbers = [5, 12, 18, 23, 34, 37, 39, 8, 15, 27]
+    
+    selected = set()
+    
+    # 選擇 1-2 個熱門號碼
+    hot_count = random.randint(1, 2)
+    for _ in range(hot_count):
+        selected.add(random.choice(hot_numbers))
+    
+    # 填充至5個號碼
+    while len(selected) < 5:
+        num = random.randint(1, 39)
+        selected.add(num)
+    
+    result = sorted(selected)
+    return ', '.join([str(n).zfill(2) for n in result])
+
+def get_lucky_numbers_by_tiangan(tg):
+    """根據天干取得當日吉號"""
+    # 取得天干對應的吉號
+    base_numbers = LUCKY_NUMBERS.get(tg, [1, 2, 3, 4, 5])
+    
+    # 加入一些相關號碼 (根據傳統選擇)
+    additional = []
+    for num in base_numbers:
+        # 加入同尾數的號碼
+        for i in range(1, 4):
+            candidate = num + i * 10
+            if 1 <= candidate <= 39:
+                additional.append(candidate)
+    
+    # 合併並去重
+    all_numbers = list(set(base_numbers + additional))
+    
+    # 隨機選擇5個號碼
+    selected = random.sample(all_numbers, min(5, len(all_numbers)))
+    
+    return sorted(selected)
+
+@app.get("/api/prediction/tiangan", response_model=ApiResponse)
+def get_tiangan_prediction():
+    """取得天干地支預測"""
+    now = datetime.now()
+    
+    # 取得天干
+    tg, dz, year = get_tiangan_dizhi(now)
+    lucky_hours = get_lucky_hour(tg)
+    
+    # 檢查今天是否開獎日
+    if not is_draw_day(now):
+        # 找下一個開獎日
+        next_day = now + timedelta(days=1)
+        while not is_draw_day(next_day):
+            next_day = next_day + timedelta(days=1)
+        prediction_date = next_day.strftime('%Y-%m-%d')
+        tg_next, dz_next, _ = get_tiangan_dizhi(next_day)
+        lucky_hours = get_lucky_hour(tg_next)
+        tg = tg_next
+        dz = dz_next
+    else:
+        # 今天開獎，使用今天的日期
+        prediction_date = now.strftime('%Y-%m-%d')
+    
+    # 產生隨機預測號碼
+    prediction_numbers = generate_tiangan_prediction_numbers()
+    
+    # 取得當日吉時號碼（參考用）
+    lucky_reference = get_lucky_numbers_by_tiangan(tg)
+    lucky_reference_str = ', '.join([str(n).zfill(2) for n in lucky_reference])
+    
+    # 組合預測資訊
+    data = {
+        'prediction_date': prediction_date,
+        'prediction_time': f'{lucky_hours[0]:02d}:00',
+        'tiangan_dizhi': f"{tg}{dz}",
+        'tiangan': tg,
+        'dizhi': dz,
+        'lucky_hours': lucky_hours,
+        'numbers': prediction_numbers,
+        'lucky_reference_numbers': lucky_reference_str,
+        'is_draw_day': is_draw_day(now),
+        'created_at': now.strftime('%Y-%m-%d %H:%M:%S')
+    }
+    
+    # 保存到 prediction_result.json
+    save_tiangan_prediction(data)
+    
+    return ApiResponse(success=True, data=data)
+
+
+def save_tiangan_prediction(prediction_info, output_file='prediction_result.json'):
+    """保存天干地支預測結果到檔案（追加方式）"""
+    filepath = Path(output_file)
+    
+    # 讀取現有資料
+    if filepath.exists():
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    else:
+        data = {'predictions': []}
+    
+    # 追加新預測
+    data['predictions'].append(prediction_info)
+    
+    # 保持最近30筆
+    data['predictions'] = data['predictions'][-30:]
+    
+    # 寫入檔案
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    
+    return filepath
+
+
 # ============ 統計 API ============
 
 @app.get("/api/statistics", response_model=ApiResponse)
@@ -346,4 +561,4 @@ def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)
