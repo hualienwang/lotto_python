@@ -23,13 +23,28 @@
       </div>
       <div class="history-table-container">
         <table class="history-table">
-          <thead>
-            <tr>
-              <th style="color: white;">日期</th>
-              <th v-for="n in 39" :key="n" style="color: black;">{{ String(n).padStart(2, '0') }}</th>
-            </tr>
-          </thead>
           <tbody>
+            <!-- 出現次數行 -->
+            <tr bgcolor="#ffff00">
+              <td><div align="center"><font color="black"><b>出現次數</b></font></div></td>
+              <td 
+                v-for="n in 39" 
+                :key="n"
+                bgcolor="#ffffff" 
+                align="center" 
+                valign="bottom"
+              >
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                  <span style="color:black;">{{ getFrequency(n) }}</span>
+                  <div class="freq-bar" :style="{ width: '13px', height: getBarHeight(getFrequency(n)) + 'px' }"></div>
+                </div>
+              </td>
+            </tr>
+            <!-- 日期標題行 -->
+            <tr>
+              <th style="color: black; background-color: #f5f5f5;">日期</th>
+              <th v-for="n in 39" :key="n" style="color: black; background-color: #f5f5f5;">{{ String(n).padStart(2, '0') }}</th>
+            </tr>
             <tr v-for="result in store.results" :key="result.id">
               <td><div align="center" style="color: white;">{{ formatTaiwanDate(result.draw_date) }}</div></td>
               <td 
@@ -51,22 +66,6 @@
                 @click="toggleMarker(n)"
               >
                 <p>{{ String(n).padStart(2, '0') }}</p>
-              </td>
-            </tr>
-            <!-- 出現次數行 -->
-            <tr bgcolor="#ffff00">
-              <td><div align="center"><font color="black"><b>出現次數</b></font></div></td>
-              <td 
-                v-for="n in 39" 
-                :key="n"
-                bgcolor="#ffffff" 
-                align="center" 
-                valign="bottom"
-              >
-                <div style="display: flex; flex-direction: column; align-items: center;">
-                  <span style="color:black;">{{ getFrequency(n) }}</span>
-                  <div class="freq-bar" :style="{ width: '13px', height: getBarHeight(getFrequency(n)) + 'px' }"></div>
-                </div>
               </td>
             </tr>
           </tbody>
