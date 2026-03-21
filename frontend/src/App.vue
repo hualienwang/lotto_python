@@ -9,6 +9,7 @@
       <router-link to="/" class="tab-btn" :class="{ active: $route.path === '/' }">最新開獎</router-link>
       <router-link to="/history" class="tab-btn" :class="{ active: $route.path === '/history' }">歷次開獎</router-link>
       <router-link to="/prediction" class="tab-btn" :class="{ active: $route.path === '/prediction' }">本期預測</router-link>
+      <router-link to="/ticket" class="tab-btn" :class="{ active: $route.path === '/ticket' }">號碼簽單</router-link>
       <router-link to="/statistics" class="tab-btn" :class="{ active: $route.path === '/statistics' }">數據分析</router-link>
       <router-link to="/admin" class="tab-btn" :class="{ active: $route.path === '/admin' }">管理系統</router-link>
     </nav>

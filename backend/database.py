@@ -30,3 +30,16 @@ def init_db():
     
     # 創建所有表
     SQLModel.metadata.create_all(engine)
+    
+    # 嘗試新增 numbers2 欄位（如果表已經存在）
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            # 檢查欄位是否存在
+            result = conn.execute(text("PRAGMA table_info(predictions)"))
+            columns = [row[1] for row in result]
+            if "numbers2" not in columns:
+                conn.execute(text("ALTER TABLE predictions ADD COLUMN numbers2 VARCHAR DEFAULT NULL"))
+                conn.commit()
+    except Exception as e:
+        print(f"資料庫更新警告: {e}")

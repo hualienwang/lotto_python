@@ -119,7 +119,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watchEffect } from 'vue'
 import { useLotteryStore } from '../stores/lottery'
 
 const store = useLotteryStore()
@@ -201,6 +201,7 @@ const hotNumbers = computed(() => {
       nums.push(i)
     }
   }
+  console.log('計算熱門號碼:', nums)
   return nums.sort((a, b) => frequency.value[b] - frequency.value[a])
 })
 
@@ -212,6 +213,7 @@ const normalNumbers = computed(() => {
       nums.push(i)
     }
   }
+  console.log('計算普通號碼:', nums)
   return nums.sort((a, b) => frequency.value[b] - frequency.value[a])
 })
 
@@ -223,12 +225,20 @@ const coldNumbers = computed(() => {
       nums.push(i)
     }
   }
+  console.log('計算冷門號碼:', nums)
   return nums.sort((a, b) => frequency.value[a] - frequency.value[b])
 })
 
 onMounted(() => {
   store.fetchResults()
   store.fetchStatistics()
+})
+
+// 在 console 列印熱門號碼
+watchEffect(() => {
+  if (hotNumbers.value.length > 0) {
+    console.log('熱門號碼:', hotNumbers.value)
+  }
 })
 </script>
 

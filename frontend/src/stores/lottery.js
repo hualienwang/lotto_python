@@ -6,7 +6,6 @@ export const useLotteryStore = defineStore('lottery', {
     latestResult: null,
     results: [],
     prediction: null,
-    tianganPrediction: null,
     statistics: null,
     loading: false,
     error: null
@@ -105,19 +104,5 @@ export const useLotteryStore = defineStore('lottery', {
       }
     },
     
-    async fetchTianganPrediction() {
-      this.loading = true
-      this.error = null
-      try {
-        const res = await lotteryApi.getTianganPrediction()
-        if (res.success) {
-          this.tianganPrediction = res.data
-        }
-      } catch (err) {
-        this.error = err.message
-      } finally {
-        this.loading = false
-      }
-    }
   }
 })

@@ -49,10 +49,6 @@ export const lotteryApi = {
     return api.get('/statistics')
   },
   
-  // 取得天干地支預測
-  getTianganPrediction() {
-    return api.get('/prediction/tiangan')
-  }
 }
 
 export default api

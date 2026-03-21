@@ -8,17 +8,17 @@ echo.
 cd /d "%~dp0backend"
 
 REM 檢查虛擬環境是否存在
-if not exist "venv" (
-    echo     建立虛擬環境...
-    python -m venv venv
-)
+REM if not exist "venv" (
+REM     echo     建立虛擬環境...
+REM     python -m venv venv
+REM )
 
 REM 啟動虛擬環境
 call venv\Scripts\activate.bat
 
 REM 安裝依賴
-echo     安裝依賴...
-pip install -r requirements.txt -q
+REM echo     安裝依賴...
+REM pip install -r requirements.txt -q
 
 echo.
 echo     啟動伺服器中...

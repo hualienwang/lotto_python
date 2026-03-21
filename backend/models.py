@@ -21,6 +21,7 @@ class Prediction(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     period: str
     numbers: str
+    numbers2: Optional[str] = Field(default=None)
     created_at: Optional[str] = Field(default_factory=lambda: datetime.now().isoformat())
 
 
@@ -39,6 +40,7 @@ class PredictionResponse(SQLModel):
     id: int
     period: str
     numbers: str
+    numbers2: Optional[str] = None
     created_at: str
 
 

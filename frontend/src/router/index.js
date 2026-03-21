@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import LatestResult from '../views/LatestResult.vue'
 import History from '../views/History.vue'
 import Prediction from '../views/Prediction.vue'
+import Ticket from '../views/Ticket.vue'
 import Statistics from '../views/Statistics.vue'
 import Admin from '../views/Admin.vue'
 
@@ -20,6 +21,11 @@ const routes = [
     path: '/prediction',
     name: 'Prediction',
     component: Prediction
+  },
+  {
+    path: '/ticket',
+    name: 'Ticket',
+    component: Ticket
   },
   {
     path: '/statistics',
