@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
@@ -43,12 +43,7 @@ export const lotteryApi = {
   savePrediction(data) {
     return api.post('/prediction', null, { params: data })
   },
-  
-  // 取得統計數據
-  getStatistics() {
-    return api.get('/statistics')
-  },
-  
+
 }
 
 export default api
