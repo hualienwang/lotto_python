@@ -3,18 +3,12 @@ services:
   - name: lotto539-api
     type: web
     region: taipei
-    buildCommand: pip install -r requirements.txt
+    buildCommand: cd backend && pip install --upgrade pip && pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: "3.11"
+      - key: PIP_VERSION
+        value: "25.3"
     directory: backend
-    plan: free
-
-  # Frontend Static Site (requires GitHub connection)
-  - name: lotto539-frontend
-    type: static
-    region: taipei
-    buildCommand: cd frontend && npm install && npm run build
-    publishDir: frontend/dist
     plan: free
