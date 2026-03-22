@@ -1,54 +1,6 @@
 <template>
   <div>
     <div class="card">
-      <h2>📉 數據分析</h2>
-      
-      <div v-if="store.loading" class="loading">載入中...</div>
-      <div v-else-if="store.error" class="error">{{ store.error }}</div>
-      <div v-else-if="hasStatistics">
-        <div class="stats-grid">
-          <div class="stat-card">
-            <h3>單數</h3>
-            <div class="value">{{ oddCount }}</div>
-          </div>
-          <div class="stat-card">
-            <h3>雙數</h3>
-            <div class="value">{{ evenCount }}</div>
-          </div>
-          <div class="stat-card">
-            <h3>總開獎次數</h3>
-            <div class="value">{{ totalDraws }}</div>
-          </div>
-        </div>
-      </div>
-      <div v-else class="loading">尚無資料</div>
-    </div>
-
-    <div class="card">
-      <h2>📊 號碼區間分布</h2>
-      
-      <div v-if="hasRanges" class="stats-grid">
-        <div class="range-item">
-          <span class="range-label">1-10</span>
-          <span class="range-value">{{ rangeData['1-10'] }}</span>
-        </div>
-        <div class="range-item">
-          <span class="range-label">11-20</span>
-          <span class="range-value">{{ rangeData['11-20'] }}</span>
-        </div>
-        <div class="range-item">
-          <span class="range-label">21-30</span>
-          <span class="range-value">{{ rangeData['21-30'] }}</span>
-        </div>
-        <div class="range-item">
-          <span class="range-label">31-39</span>
-          <span class="range-value">{{ rangeData['31-39'] }}</span>
-        </div>
-      </div>
-      <div v-else class="loading">載入中...</div>
-    </div>
-
-    <div class="card">
       <h2>🎯 號碼出現頻率</h2>
       
       <div v-if="hasFrequency" class="frequency-chart">
@@ -115,6 +67,28 @@
       </div>
       <div v-else class="loading">載入中...</div>
     </div>
+
+    <div class="card">
+      <h2>📅 最近3期開獎號碼</h2>
+      
+      <div v-if="latestResults.length > 0" class="latest-results-list">
+        <div 
+          v-for="result in latestResults" 
+          :key="result.id" 
+          class="result-row"
+        >
+          <span class="result-period">{{ result.period }}期</span>
+          <div class="result-numbers">
+            <span 
+              v-for="num in formatNumbers(result.numbers)" 
+              :key="num" 
+              class="number-tag ball"
+            >{{ num }}</span>
+          </div>
+        </div>
+      </div>
+      <div v-else class="loading">載入中...</div>
+    </div>
   </div>
 </template>
 
@@ -124,29 +98,17 @@ import { useLotteryStore } from '../stores/lottery'
 
 const store = useLotteryStore()
 
-const hasStatistics = computed(() => {
-  return store.statistics && store.statistics.odd_even
+// 最近3期開獎號碼
+const latestResults = computed(() => {
+  const results = store.results || []
+  return results.slice(0, 3)
 })
 
-const oddCount = computed(() => {
-  return store.statistics?.odd_even?.odd || 0
-})
-
-const evenCount = computed(() => {
-  return store.statistics?.odd_even?.even || 0
-})
-
-const totalDraws = computed(() => {
-  return store.statistics?.total_draws || 0
-})
-
-const hasRanges = computed(() => {
-  return store.statistics && store.statistics.ranges
-})
-
-const rangeData = computed(() => {
-  return store.statistics?.ranges || {}
-})
+// 格式化號碼為陣列
+const formatNumbers = (numbers) => {
+  if (!numbers) return []
+  return numbers.split(',').map(n => n.trim())
+}
 
 // 只取最近30期的資料
 const recentResults = computed(() => {
@@ -231,7 +193,6 @@ const coldNumbers = computed(() => {
 
 onMounted(() => {
   store.fetchResults()
-  store.fetchStatistics()
 })
 
 // 在 console 列印熱門號碼
@@ -243,50 +204,31 @@ watchEffect(() => {
 </script>
 
 <style scoped>
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.stat-card {
-  background: #f5f5f5;
-  padding: 16px;
-  border-radius: 8px;
-  text-align: center;
-}
-
-.stat-card h3 {
-  margin: 0 0 8px 0;
-  font-size: 14px;
-  color: #333;
-}
-
-.stat-card .value {
-  font-size: 24px;
-  font-weight: bold;
-  color: #008000;
-}
-
-.range-item {
+.latest-results-list {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.result-row {
+  display: flex;
   align-items: center;
+  gap: 16px;
   padding: 12px;
   background: #f5f5f5;
   border-radius: 8px;
 }
 
-.range-label {
+.result-period {
   font-weight: bold;
-  color: #333;
+  color: #000;
+  min-width: 80px;
+  font-size: 16px;
 }
 
-.range-value {
-  font-size: 18px;
-  font-weight: bold;
-  color: #008000;
+.result-numbers {
+  display: flex;
+  gap: 8px;
 }
 
 .frequency-chart {
@@ -383,6 +325,20 @@ watchEffect(() => {
   border-radius: 4px;
   font-size: 12px;
   font-weight: bold;
+}
+
+.number-tag.ball {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: bold;
+  background: linear-gradient(135deg, #ff6b6b, #ee5a5a);
+  color: white;
+  padding: 0;
 }
 
 .number-tag.hot {

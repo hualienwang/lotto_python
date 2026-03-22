@@ -41,6 +41,27 @@
           </div>
         </div>
 
+        <!-- 最近3期開獎號碼 -->
+        <div class="ticket-section">
+          <h3>📅 最近3期開獎號碼</h3>
+          <div class="latest-results">
+            <div 
+              v-for="result in latest3Results" 
+              :key="result.id" 
+              class="result-row"
+            >
+              <span class="result-period">{{ result.period }}期</span>
+              <div class="result-numbers">
+                <span 
+                  v-for="num in formatNumbers(result.numbers)" 
+                  :key="num" 
+                  class="number-ball"
+                >{{ num }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 預測區 -->
         <div class="ticket-section" v-if="store.prediction?.numbers">
           <h3>🔮 預測號碼</h3>
@@ -122,6 +143,18 @@ const latestNumbers = computed(() => {
   return store.latestResult.numbers.split(',').map(n => n.trim())
 })
 
+// 最近3期開獎號碼
+const latest3Results = computed(() => {
+  const results = store.results || []
+  return results.slice(0, 3)
+})
+
+// 格式化號碼為陣列
+const formatNumbers = (numbers) => {
+  if (!numbers) return []
+  return numbers.split(',').map(n => n.trim())
+}
+
 // 檢查是否為最新開獎號碼
 const isLatestNumber = (num) => {
   const numStr = String(num).padStart(2, '0')
@@ -174,6 +207,7 @@ const saveCurrentPrediction = async () => {
 
 onMounted(() => {
   store.fetchLatestResult()
+  store.fetchResults()
 })
 </script>
 
@@ -319,5 +353,46 @@ onMounted(() => {
   gap: 10px;
   justify-content: center;
   margin-top: 20px;
+}
+
+/* 最近3期開獎號碼 */
+.latest-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.result-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.result-period {
+  font-weight: bold;
+  color: #ffd700;
+  min-width: 80px;
+  font-size: 14px;
+}
+
+.result-numbers {
+  display: flex;
+  gap: 8px;
+}
+
+.number-ball {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: bold;
+  background: linear-gradient(135deg, #ff6b6b, #ee5a5a);
+  color: white;
 }
 </style>

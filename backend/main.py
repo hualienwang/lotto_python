@@ -387,51 +387,7 @@ def save_prediction(
             return ApiResponse(success=False, message=f"儲存失敗: {str(e)}")
 
 
-# ============ 統計 API ============
 
-@app.get("/api/statistics", response_model=ApiResponse)
-def get_statistics(session: Session = Depends(get_session)):
-    """取得統計數據"""
-    results = session.exec(
-        select(LotteryResult).order_by(LotteryResult.id.desc()).limit(30)
-    ).all()
-    
-    if not results:
-        return ApiResponse(success=False, message="尚無資料")
-    
-    frequency = {}
-    odd_even = {"odd": 0, "even": 0}
-    ranges = {"1-10": 0, "11-20": 0, "21-30": 0, "31-39": 0}
-    
-    for r in results:
-        nums = [int(n.strip()) for n in r.numbers.split(",")]
-        for num in nums:
-            frequency[num] = frequency.get(num, 0) + 1
-            
-            # 單雙統計
-            if num % 2 == 0:
-                odd_even["even"] += 1
-            else:
-                odd_even["odd"] += 1
-            
-            # 區間統計
-            if num <= 10:
-                ranges["1-10"] += 1
-            elif num <= 20:
-                ranges["11-20"] += 1
-            elif num <= 30:
-                ranges["21-30"] += 1
-            else:
-                ranges["31-39"] += 1
-    
-    data = {
-        "frequency": frequency,
-        "odd_even": odd_even,
-        "ranges": ranges,
-        "total_draws": len(results)
-    }
-    
-    return ApiResponse(success=True, data=data)
 
 
 # ============ 健康檢查 ============
