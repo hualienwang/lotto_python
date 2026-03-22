@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 from typing import List, Optional
 import json
@@ -392,9 +394,28 @@ def save_prediction(
 
 # ============ 健康檢查 ============
 
+# 配置靜態檔案服務
+FRONTEND_DIST = "../frontend/dist"
+
 @app.get("/")
 def root():
+    """首頁服務前端 index.html"""
+    index_path = os.path.join(FRONTEND_DIST, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
     return {"message": "台灣彩券539 API 服務正常", "version": "1.0.0"}
+
+@app.get("/{path:path}")
+def serve_frontend(path: str):
+    """服務前端路由 - 讓 Vue Router 可以正常運作"""
+    file_path = os.path.join(FRONTEND_DIST, path)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return FileResponse(file_path)
+    # 如果檔案不存在，回傳 index.html 讓 Vue Router 處理
+    index_path = os.path.join(FRONTEND_DIST, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"error": "Not found"}
 
 
 @app.get("/health")
