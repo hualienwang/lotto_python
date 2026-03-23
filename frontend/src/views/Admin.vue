@@ -47,7 +47,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useLotteryStore } from '../stores/lottery'
 
 const store = useLotteryStore()
@@ -58,6 +58,18 @@ const form = reactive({
   period: '',
   draw_date: '',
   numbers: ''
+})
+
+const initPeriod = () => {
+  store.fetchLatestResult().then(() => {
+    if (store.latestResult?.period) {
+      form.period = String(Number(store.latestResult.period) + 1)
+    }
+  })
+}
+
+onMounted(() => {
+  initPeriod()
 })
 
 const submitResult = async () => {

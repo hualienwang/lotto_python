@@ -168,10 +168,10 @@ def add_result(
 @app.get("/api/prediction", response_model=ApiResponse)
 def get_prediction(session: Session = Depends(get_session)):
     """取得預測號碼 - 新演算法：
-    1. 取得最近30期開獎號碼中出現次數大於等於4次的號碼
-    2. 從這些號碼中隨機組合1000次開獎號碼
-    3. 統計每個號碼在1000次中出現的次數並排序
-    4. 產出2組539預測號碼"""
+    1. 取得最近30期開獎號碼中出現次數大於等於4次的號碼（熱門號碼）
+    2. 取得最近三期開獎號碼
+    3. 從熱門號碼中減去最近三期開獎號碼（不重複）
+    4. 從剩下的號碼中隨機選擇5個號碼作為預測（不加權）"""
     # 取得最近30期資料進行分析
     results = session.exec(
         select(LotteryResult).order_by(LotteryResult.id.desc()).limit(30)
@@ -187,43 +187,55 @@ def get_prediction(session: Session = Depends(get_session)):
         for num in nums:
             frequency[num] = frequency.get(num, 0) + 1
     
-    # 篩選出現次數大於等於4次的號碼
-    frequent_numbers = [num for num, count in frequency.items() if count >= 4]
+    # 篩選出現次數大於等於4次的號碼（熱門號碼）
+    hot_numbers = [num for num, count in frequency.items() if count >= 4]
     
-    if len(frequent_numbers) < 5:
+    if len(hot_numbers) < 5:
         # 如果不足5個號碼，則使用出現次數最多的前10個號碼
         sorted_nums = sorted(frequency.items(), key=lambda x: x[1], reverse=True)
-        frequent_numbers = [n[0] for n in sorted_nums[:10]]
+        hot_numbers = [n[0] for n in sorted_nums[:10]]
     
-    # 從這些號碼中隨機組合1000次開獎號碼
-    simulation_results = {}
-    for num in range(1, 40):
-        simulation_results[num] = 0
+    # 取得最近三期開獎號碼
+    recent_3_results = session.exec(
+        select(LotteryResult).order_by(LotteryResult.id.desc()).limit(3)
+    ).all()
     
-    for _ in range(1000):
-        # 每次隨機選5個號碼（從頻繁號碼中選）
-        selected = random.sample(frequent_numbers, min(5, len(frequent_numbers)))
-        for num in selected:
-            simulation_results[num] = simulation_results.get(num, 0) + 1
+    recent_3_numbers = set()
+    for r in recent_3_results:
+        nums = [int(n.strip()) for n in r.numbers.split(",")]
+        recent_3_numbers.update(nums)
     
-    # 按出現次數排序
-    sorted_simulation = sorted(simulation_results.items(), key=lambda x: x[1], reverse=True)
+    # 從熱門號碼中減去最近三期開獎號碼
+    filtered_numbers = [num for num in hot_numbers if num not in recent_3_numbers]
     
-    # 產生2組539預測號碼
-    prediction_sets = generate_prediction_sets(frequent_numbers, frequency, sorted_simulation)
+    # 如果過濾後不足5個號碼，從剩餘熱門號碼中补充
+    if len(filtered_numbers) < 5:
+        remaining_hot = [num for num in hot_numbers if num in recent_3_numbers]
+        # 按頻率排序取最高頻率的
+        remaining_hot_sorted = sorted(remaining_hot, key=lambda x: frequency.get(x, 0), reverse=True)
+        filtered_numbers.extend(remaining_hot_sorted[:5 - len(filtered_numbers)])
+    
+    # 從過濾後的號碼中隨機選擇5個（不加權）
+    import random
+    final_pool = filtered_numbers[:]  # 複製一份避免修改原始列表
+    random.shuffle(final_pool)
+    prediction_set1 = sorted(final_pool[:5])
+    
+    # 產生第二組（再次隨機）
+    random.shuffle(final_pool)
+    prediction_set2 = sorted(final_pool[:5])
     
     # 準備分析資料
     frequency_analysis = {str(num): count for num, count in sorted(frequency.items(), key=lambda x: x[1], reverse=True)}
-    simulation_analysis = {str(num): count for num, count in sorted_simulation}
     
     data = {
-        "numbers": prediction_sets[0],  # 第一組
-        "numbers2": prediction_sets[1],  # 第二組
+        "numbers": ", ".join([str(n).zfill(2) for n in prediction_set1]),  # 第一組
+        "numbers2": ", ".join([str(n).zfill(2) for n in prediction_set2]),  # 第二組
         "analysis": {
-            "frequent_numbers": sorted(frequent_numbers),
-            "frequency": frequency_analysis,
-            "simulation_1000": simulation_analysis,
-            "sorted_by_frequency": [num for num, _ in sorted_simulation]
+            "hot_numbers": sorted(hot_numbers),
+            "recent_3_numbers": sorted(recent_3_numbers),
+            "filtered_numbers": sorted(filtered_numbers),
+            "frequency": frequency_analysis
         }
     }
     

@@ -41,23 +41,16 @@
           </div>
         </div>
 
-        <!-- 最近3期開獎號碼 -->
-        <div class="ticket-section">
-          <h3>📅 最近3期開獎號碼</h3>
-          <div class="latest-results">
+        <!-- 過濾後可供預測的號碼 -->
+        <div class="ticket-section" v-if="store.prediction?.analysis?.filtered_numbers">
+          <h3>✅ 過濾後可供預測的號碼</h3>
+          <div class="number-grid">
             <div 
-              v-for="result in latest3Results" 
-              :key="result.id" 
-              class="result-row"
+              v-for="num in filteredNumbers" 
+              :key="'filtered-' + num" 
+              class="number-cell filtered-number"
             >
-              <span class="result-period">{{ result.period }}期</span>
-              <div class="result-numbers">
-                <span 
-                  v-for="num in formatNumbers(result.numbers)" 
-                  :key="num" 
-                  class="number-ball"
-                >{{ num }}</span>
-              </div>
+              {{ String(num).padStart(2, '0') }}
             </div>
           </div>
         </div>
@@ -180,6 +173,11 @@ const predictionNumbers = computed(() => {
 const predictionNumbers2 = computed(() => {
   if (!store.prediction?.numbers2) return []
   return store.prediction.numbers2.split(',').map(n => n.trim())
+})
+
+// 過濾後可供預測的號碼
+const filteredNumbers = computed(() => {
+  return store.prediction?.analysis?.filtered_numbers || []
 })
 
 const getNewPrediction = () => {
@@ -306,6 +304,14 @@ onMounted(() => {
 
 .number-cell.freq-6 .count {
   color: #fef2f2;
+}
+
+/* 過濾後可供預測的號碼樣式 */
+.number-cell.filtered-number {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #fff;
+  border: 2px solid #34d399;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
 }
 
 /* 選中號碼樣式 */

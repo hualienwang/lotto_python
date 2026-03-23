@@ -4,7 +4,7 @@
     <div class="card">
       <h2>🔮 本期預測</h2>
       <div class="prediction-box">
-        <p>根據最近30期開獎號碼中出現次數大於等於4次的號碼，隨機模擬1000次開獎後統計分析</p>
+        <p>根據最近30期開獎號碼中出現次數大於等於4次的號碼（熱門號碼），減去最近三期開獎號碼後，隨機選擇5個號碼進行預測（不加權）</p>
         
         <template v-if="store.loading">
           <div class="loading">載入中...</div>
@@ -60,15 +60,15 @@
 
     <!-- 分析結果區塊 -->
     <div class="card" v-if="store.prediction?.analysis">
-      <h2>📊 模擬分析結果 (1000次)</h2>
+      <h2>📊 預測分析</h2>
       <div class="analysis-box">
-        <!-- 出現次數 > 4 的號碼 -->
+        <!-- 熱門號碼 -->
         <div class="frequent-numbers">
-          <h3>🔥 最近30期出現次數 >= 4 的號碼</h3>
+          <h3>🔥 最近30期出現次數 >= 4 的號碼（熱門號碼）</h3>
           <div class="numbers">
             <span 
-              v-for="num in frequentNumbers" 
-              :key="'freq-' + num" 
+              v-for="num in hotNumbers" 
+              :key="'hot-' + num" 
               class="number number-highlight"
             >
               {{ String(num).padStart(2, '0') }}
@@ -77,43 +77,31 @@
           </div>
         </div>
         
-        <!-- 模擬1000次結果 -->
-        <div class="simulation-results">
-          <h3>📈 模擬1000次開獎號碼出現次數排序</h3>
-          <!-- 統計數值 -->
-          <div class="simulation-stats">
-            <div class="stat-item">
-              <span class="stat-label">眾數：</span>
-              <span class="stat-value">{{ simulationStats.mode }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">中位數：</span>
-              <span class="stat-value">{{ simulationStats.median }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">平均數：</span>
-              <span class="stat-value">{{ simulationStats.mean }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">標準差：</span>
-              <span class="stat-value">{{ simulationStats.stdDev }}</span>
-            </div>
-          </div>
-          <div class="frequency-chart">
-            <div 
-              v-for="item in sortedSimulation" 
-              :key="'sim-' + item.num" 
-              class="freq-bar-container"
+        <!-- 最近三期號碼 -->
+        <div class="recent-numbers">
+          <h3>📅 最近三期開獎號碼（已排除）</h3>
+          <div class="numbers">
+            <span 
+              v-for="num in recent3Numbers" 
+              :key="'recent-' + num" 
+              class="number number-recent"
             >
-              <span class="freq-label">{{ String(item.num).padStart(2, '0') }}</span>
-              <div class="freq-bar-wrapper">
-                <div 
-                  class="freq-bar" 
-                  :style="{ width: (item.count / maxSimulationCount * 100) + '%' }"
-                ></div>
-              </div>
-              <span class="freq-count">{{ item.count }}</span>
-            </div>
+              {{ String(num).padStart(2, '0') }}
+            </span>
+          </div>
+        </div>
+        
+        <!-- 過濾後可供預測的號碼 -->
+        <div class="filtered-numbers">
+          <h3>✅ 過濾後可供預測的號碼</h3>
+          <div class="numbers">
+            <span 
+              v-for="num in filteredNumbers" 
+              :key="'filtered-' + num" 
+              class="number number-filtered"
+            >
+              {{ String(num).padStart(2, '0') }}
+            </span>
           </div>
         </div>
       </div>
@@ -141,73 +129,25 @@ const predictionNumbers2 = computed(() => {
   return store.prediction.numbers2.split(',').map(n => n.trim())
 })
 
-// 頻繁號碼（出現次數 >= 4）
-const frequentNumbers = computed(() => {
-  return store.prediction?.analysis?.frequent_numbers || []
+// 熱門號碼（出現次數 >= 4）
+const hotNumbers = computed(() => {
+  return store.prediction?.analysis?.hot_numbers || []
+})
+
+// 最近三期開獎號碼
+const recent3Numbers = computed(() => {
+  return store.prediction?.analysis?.recent_3_numbers || []
+})
+
+// 過濾後可供預測的號碼
+const filteredNumbers = computed(() => {
+  return store.prediction?.analysis?.filtered_numbers || []
 })
 
 // 取得號碼出現次數
 const getFrequencyCount = (num) => {
   return store.prediction?.analysis?.frequency?.[num] || 0
 }
-
-// 模擬1000次結果排序（只顯示有出現的號碼）
-const sortedSimulation = computed(() => {
-  const sim = store.prediction?.analysis?.simulation_1000 || {}
-  const result = []
-  for (const [num, count] of Object.entries(sim)) {
-    if (count > 0) {  // 過濾掉未出現的號碼
-      result.push({ num: parseInt(num), count })
-    }
-  }
-  return result.sort((a, b) => b.count - a.count)
-})
-
-// 模擬1000次統計數值
-const simulationStats = computed(() => {
-  const sim = store.prediction?.analysis?.simulation_1000 || {}
-  const counts = Object.values(sim)
-  
-  if (counts.length === 0) {
-    return { mode: '-', median: '-', mean: '-', stdDev: '-' }
-  }
-  
-  // 平均數
-  const sum = counts.reduce((a, b) => a + b, 0)
-  const mean = sum / counts.length
-  
-  // 中位數
-  const sorted = [...counts].sort((a, b) => a - b)
-  const mid = Math.floor(sorted.length / 2)
-  const median = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
-  
-  // 標準差
-  const variance = counts.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / counts.length
-  const stdDev = Math.sqrt(variance)
-  
-  // 眾數
-  const freqMap = {}
-  let maxFreq = 0
-  counts.forEach(c => {
-    freqMap[c] = (freqMap[c] || 0) + 1
-    if (freqMap[c] > maxFreq) maxFreq = freqMap[c]
-  })
-  const modeCounts = Object.keys(freqMap).filter(k => freqMap[k] === maxFreq)
-  const mode = modeCounts.join(', ')
-  
-  return {
-    mode: `出現${modeCounts[0]}次的號碼有${modeCounts.length}個`,
-    median: median.toFixed(2),
-    mean: mean.toFixed(2),
-    stdDev: stdDev.toFixed(2)
-  }
-})
-
-// 最大模擬次數（用於計算百分比）
-const maxSimulationCount = computed(() => {
-  if (sortedSimulation.value.length === 0) return 1
-  return Math.max(...sortedSimulation.value.map(s => s.count))
-})
 
 const getNewPrediction = () => {
   message.value = ''
@@ -281,12 +221,15 @@ onMounted(() => {
   padding: 10px;
 }
 
-.frequent-numbers {
+.frequent-numbers,
+.recent-numbers,
+.filtered-numbers {
   margin-bottom: 25px;
 }
 
 .frequent-numbers h3,
-.simulation-results h3 {
+.recent-numbers h3,
+.filtered-numbers h3 {
   font-size: 1rem;
   margin-bottom: 15px;
   color: #ffd700;
@@ -303,70 +246,11 @@ onMounted(() => {
   color: #555;
 }
 
-.simulation-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 15px;
-  margin-bottom: 20px;
-  padding: 15px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
+.number-recent {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
 }
 
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.stat-label {
-  color: #aaa;
-  font-size: 0.9rem;
-}
-
-.stat-value {
-  color: #ffd700;
-  font-weight: bold;
-  font-size: 0.9rem;
-}
-
-.frequency-chart {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.freq-bar-container {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.freq-label {
-  width: 30px;
-  font-weight: bold;
-  text-align: center;
-}
-
-.freq-bar-wrapper {
-  flex: 1;
-  height: 20px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.freq-bar {
-  height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-  border-radius: 10px;
-  transition: width 0.3s ease;
-}
-
-.freq-count {
-  width: 40px;
-  text-align: right;
-  font-size: 0.9rem;
-  color: #aaa;
+.number-filtered {
+  background: linear-gradient(135deg, #51cf66 0%, #40c057 100%);
 }
 </style>
