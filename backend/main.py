@@ -163,83 +163,382 @@ def add_result(
     return ApiResponse(success=True, message="開獎結果已新增", data={"id": result.id})
 
 
+
 # ============ 預測 API ============
+
+class LotteryAnalyzer:
+    """彩券分析器 - 多維度數據分析"""
+    
+    def __init__(self, results: List[LotteryResult]):
+        self.results = results
+        self.total_draws = len(results)
+        
+    def parse_numbers(self, numbers_str: str) -> List[int]:
+        """解析號碼字符串"""
+        return [int(n.strip()) for n in numbers_str.split(",")]
+    
+    def get_frequency_analysis(self, period: int = 30) -> dict:
+        """
+        頻率分析：統計指定期數內各號碼出現次數
+        返回：{號碼：出現次數}
+        """
+        frequency = {}
+        for r in self.results[:period]:
+            nums = self.parse_numbers(r.numbers)
+            for num in nums:
+                frequency[num] = frequency.get(num, 0) + 1
+        return frequency
+    
+    def get_omission_analysis(self) -> dict:
+        """
+        遺漏值分析：計算每個號碼連續未開出的期數
+        返回：{號碼：遺漏期數}
+        """
+        omission = {num: 0 for num in range(1, 40)}
+        
+        for r in self.results:
+            nums = self.parse_numbers(r.numbers)
+            # 已開出的號碼重置遺漏值
+            for num in nums:
+                omission[num] = 0
+            # 未開出的號碼遺漏值 +1
+            for num in range(1, 40):
+                if num not in nums:
+                    omission[num] += 1
+        
+        return omission
+    
+    def get_odd_even_analysis(self, period: int = 30) -> dict:
+        """
+        奇偶分析：統計奇數和偶數的比例
+        """
+        odd_count = 0
+        even_count = 0
+        
+        for r in self.results[:period]:
+            nums = self.parse_numbers(r.numbers)
+            for num in nums:
+                if num % 2 == 0:
+                    even_count += 1
+                else:
+                    odd_count += 1
+        
+        total = odd_count + even_count
+        return {
+            "odd": {"count": odd_count, "ratio": odd_count / total if total > 0 else 0},
+            "even": {"count": even_count, "ratio": even_count / total if total > 0 else 0}
+        }
+    
+    def get_range_analysis(self, period: int = 30) -> dict:
+        """
+        大小號分析：將號碼分為小號 (1-19) 和大號 (20-39)
+        """
+        small_count = 0
+        large_count = 0
+        
+        for r in self.results[:period]:
+            nums = self.parse_numbers(r.numbers)
+            for num in nums:
+                if num <= 19:
+                    small_count += 1
+                else:
+                    large_count += 1
+        
+        total = small_count + large_count
+        return {
+            "small": {"count": small_count, "ratio": small_count / total if total > 0 else 0},
+            "large": {"count": large_count, "ratio": large_count / total if total > 0 else 0}
+        }
+    
+    def get_tail_analysis(self, period: int = 30) -> dict:
+        """
+        同尾號分析：統計各尾數 (0-9) 的出現頻率
+        """
+        tail_freq = {i: 0 for i in range(10)}
+        
+        for r in self.results[:period]:
+            nums = self.parse_numbers(r.numbers)
+            for num in nums:
+                tail = num % 10
+                tail_freq[tail] += 1
+        
+        return tail_freq
+    
+    def get_consecutive_analysis(self, period: int = 30) -> dict:
+        """
+        連號分析：統計連號出現的模式
+        """
+        consecutive_pairs = {}
+        
+        for r in self.results[:period]:
+            nums = sorted(self.parse_numbers(r.numbers))
+            for i in range(len(nums) - 1):
+                if nums[i+1] - nums[i] == 1:
+                    pair = (nums[i], nums[i+1])
+                    consecutive_pairs[pair] = consecutive_pairs.get(pair, 0) + 1
+        
+        return consecutive_pairs
+    
+    def calculate_composite_score(self) -> dict:
+        """
+        計算綜合評分：結合多個指標為每個號碼評分
+        評分因素：
+        - 頻率分數 (40%)：近期出現頻率
+        - 遺漏分數 (25%)：遺漏值適中的號碼（太冷或太熱都不好）
+        - 趨勢分數 (20%)：近期是否呈現上升趨勢
+        - 尾號分數 (15%)：熱門尾數加分
+        """
+        # 短期頻率 (最近 10 期)
+        short_freq = self.get_frequency_analysis(10)
+        # 中期頻率 (最近 30 期)
+        mid_freq = self.get_frequency_analysis(30)
+        # 長期頻率 (全部)
+        long_freq = self.get_frequency_analysis(self.total_draws)
+        
+        # 遺漏值
+        omission = self.get_omission_analysis()
+        
+        # 尾號頻率
+        tail_freq = self.get_tail_analysis(30)
+        
+        # 計算各指標的最大值用於歸一化
+        max_short = max(short_freq.values()) if short_freq else 1
+        max_mid = max(mid_freq.values()) if mid_freq else 1
+        
+        scores = {}
+        
+        for num in range(1, 40):
+            # 頻率分數 (40%): 綜合短中長期
+            short_score = (short_freq.get(num, 0) / max_short) * 100 if max_short > 0 else 0
+            mid_score = (mid_freq.get(num, 0) / max_mid) * 100 if max_mid > 0 else 0
+            long_score = (long_freq.get(num, 0) / max(long_freq.values())) * 100 if long_freq else 0
+            
+            freq_score = short_score * 0.5 + mid_score * 0.3 + long_score * 0.2
+            
+            # 遺漏分數 (25%): 遺漏值在 3-10 之間最佳
+            omit = omission.get(num, 0)
+            if 3 <= omit <= 10:
+                omit_score = 100 - abs(omit - 6.5) * 5  # 以 6.5 為中心
+            elif omit < 3:
+                omit_score = 80 - omit * 10  # 太熱稍微降分
+            else:
+                omit_score = max(20, 100 - omit * 3)  # 太冷大幅降分但仍保留機會
+            
+            # 趨勢分數 (20%): 比較短期與中期頻率
+            short_rate = short_freq.get(num, 0) / 10 if short_freq else 0
+            mid_rate = mid_freq.get(num, 0) / 30 if mid_freq else 0
+            if short_rate > mid_rate * 1.5:
+                trend_score = 100  # 上升趨勢
+            elif short_rate < mid_rate * 0.5:
+                trend_score = 40  # 下降趨勢
+            else:
+                trend_score = 70  # 穩定
+            
+            # 尾號分數 (15%)
+            tail = num % 10
+            max_tail = max(tail_freq.values()) if tail_freq else 1
+            tail_score = (tail_freq.get(tail, 0) / max_tail) * 100 if max_tail > 0 else 0
+            
+            # 綜合評分
+            composite = (
+                freq_score * 0.40 +
+                omit_score * 0.25 +
+                trend_score * 0.20 +
+                tail_score * 0.15
+            )
+            
+            scores[num] = round(composite, 2)
+        
+        return scores
+
 
 @app.get("/api/prediction", response_model=ApiResponse)
 def get_prediction(session: Session = Depends(get_session)):
-    """取得預測號碼 - 新演算法：
-    1. 取得最近30期開獎號碼中出現次數大於等於4次的號碼（熱門號碼）
-    2. 取得最近三期開獎號碼
-    3. 從熱門號碼中減去最近三期開獎號碼（不重複）
-    4. 從剩下的號碼中隨機選擇5個號碼作為預測（不加權）"""
-    # 取得最近30期資料進行分析
+    """
+    取得預測號碼 - 優化版多維度分析演算法
+    
+    分析維度：
+    1. 頻率分析：短中長期出現頻率
+    2. 遺漏值分析：冷熱號轉換趨勢
+    3. 奇偶比例：歷史奇偶分佈
+    4. 大小號比例：1-19 vs 20-39
+    5. 同尾號分析：尾數熱度
+    6. 連號模式：常見連號組合
+    
+    選號策略：
+    1. 使用綜合評分系統選出高分號碼
+    2. 確保合理的奇偶比例 (2-3 個奇數)
+    3. 確保合理的大小號比例
+    4. 避免全熱或全冷的極端組合
+    5. 產生兩組互補的預測號碼
+    """
+    # 取得所有歷史資料進行分析
     results = session.exec(
-        select(LotteryResult).order_by(LotteryResult.id.desc()).limit(30)
+        select(LotteryResult).order_by(LotteryResult.id.desc()).limit(100)
     ).all()
     
     if not results:
         return ApiResponse(success=False, message="尚無足夠資料進行預測")
     
-    # 統計號碼頻率
-    frequency = {}
-    for r in results:
-        nums = [int(n.strip()) for n in r.numbers.split(",")]
-        for num in nums:
-            frequency[num] = frequency.get(num, 0) + 1
+    # 初始化分析器
+    analyzer = LotteryAnalyzer(results)
     
-    # 篩選出現次數大於等於4次的號碼（熱門號碼）
-    hot_numbers = [num for num, count in frequency.items() if count >= 4]
+    # 執行多維度分析
+    frequency = analyzer.get_frequency_analysis(30)
+    omission = analyzer.get_omission_analysis()
+    odd_even = analyzer.get_odd_even_analysis(30)
+    range_dist = analyzer.get_range_analysis(30)
+    tail_freq = analyzer.get_tail_analysis(30)
     
-    if len(hot_numbers) < 5:
-        # 如果不足5個號碼，則使用出現次數最多的前10個號碼
-        sorted_nums = sorted(frequency.items(), key=lambda x: x[1], reverse=True)
-        hot_numbers = [n[0] for n in sorted_nums[:10]]
+    # 計算綜合評分
+    scores = analyzer.calculate_composite_score()
     
-    # 取得最近三期開獎號碼
+    # 依評分排序
+    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    
+    # 分類號碼
+    hot_numbers = [num for num, score in sorted_scores[:15]]  # 前 15 名高分
+    warm_numbers = [num for num, score in sorted_scores[15:25]]  # 第 16-25 名
+    cold_numbers = [num for num, score in sorted_scores[25:]]  # 其餘
+    
+    # 取得最近三期開獎號碼（用於排除）
     recent_3_results = session.exec(
         select(LotteryResult).order_by(LotteryResult.id.desc()).limit(3)
     ).all()
     
     recent_3_numbers = set()
     for r in recent_3_results:
-        nums = [int(n.strip()) for n in r.numbers.split(",")]
+        nums = analyzer.parse_numbers(r.numbers)
         recent_3_numbers.update(nums)
     
-    # 從熱門號碼中減去最近三期開獎號碼
-    filtered_numbers = [num for num in hot_numbers if num not in recent_3_numbers]
+    # 產生預測號碼函數
+    def generate_balanced_prediction(exclude_set: set = None) -> List[int]:
+        """產生平衡的預測號碼組合"""
+        if exclude_set is None:
+            exclude_set = set()
+        
+        selected = []
+        import random
+        
+        # 策略 1: 從熱門號碼中選 2-3 個（排除最近 3 期）
+        hot_available = [n for n in hot_numbers if n not in exclude_set and n not in selected]
+        hot_count = 2 if len(hot_available) < 3 else 3
+        random.shuffle(hot_available)
+        selected.extend(sorted(hot_available[:hot_count], reverse=True)[:hot_count])
+        
+        # 策略 2: 從溫熱號碼中選 1-2 個
+        warm_available = [n for n in warm_numbers if n not in exclude_set and n not in selected]
+        warm_count = 1 if len(warm_available) < 2 else 2
+        random.shuffle(warm_available)
+        selected.extend(sorted(warm_available[:warm_count], reverse=True)[:warm_count])
+        
+        # 策略 3: 從冷門號碼中選 0-1 個（防守型）
+        if random.random() > 0.4 and len(selected) < 5:  # 60% 機率選冷門
+            cold_available = [n for n in cold_numbers if n not in exclude_set and n not in selected]
+            if cold_available:
+                # 選擇遺漏值適中的冷門號（遺漏 5-15 期）
+                suitable_cold = [n for n in cold_available if 5 <= omission.get(n, 0) <= 15]
+                if suitable_cold:
+                    selected.append(max(suitable_cold, key=lambda x: scores.get(x, 0)))
+                elif cold_available:
+                    selected.append(max(cold_available, key=lambda x: scores.get(x, 0)))
+        
+        # 策略 4: 補足至 5 個號碼
+        while len(selected) < 5:
+            remaining = [n for n in range(1, 40) if n not in exclude_set and n not in selected]
+            if not remaining:
+                break
+            # 按評分選擇最高的
+            best = max(remaining, key=lambda x: scores.get(x, 0))
+            selected.append(best)
+        
+        # 策略 5: 調整奇偶比例
+        odd_count = sum(1 for n in selected if n % 2 == 1)
+        if odd_count < 2:
+            # 太少奇數，替換一個偶數為奇數
+            even_nums = [n for n in selected if n % 2 == 0]
+            if even_nums:
+                worst_even = min(even_nums, key=lambda x: scores.get(x, 0))
+                selected.remove(worst_even)
+                odd_pool = [n for n in range(1, 40) if n % 2 == 1 and n not in selected and n not in exclude_set]
+                if odd_pool:
+                    best_odd = max(odd_pool, key=lambda x: scores.get(x, 0))
+                    selected.append(best_odd)
+        elif odd_count > 3:
+            # 太多奇數，替換一個奇數為偶數
+            odd_nums = [n for n in selected if n % 2 == 1]
+            if odd_nums:
+                worst_odd = min(odd_nums, key=lambda x: scores.get(x, 0))
+                selected.remove(worst_odd)
+                even_pool = [n for n in range(1, 40) if n % 2 == 0 and n not in selected and n not in exclude_set]
+                if even_pool:
+                    best_even = max(even_pool, key=lambda x: scores.get(x, 0))
+                    selected.append(best_even)
+        
+        # 策略 6: 調整大小號比例
+        small_count = sum(1 for n in selected if n <= 19)
+        if small_count < 2:
+            # 太少小號，嘗試替換
+            large_nums = [n for n in selected if n > 19]
+            if large_nums:
+                worst_large = min(large_nums, key=lambda x: scores.get(x, 0))
+                selected.remove(worst_large)
+                small_pool = [n for n in range(1, 20) if n not in selected and n not in exclude_set]
+                if small_pool:
+                    best_small = max(small_pool, key=lambda x: scores.get(x, 0))
+                    selected.append(best_small)
+        elif small_count > 3:
+            # 太多小號，嘗試替換
+            small_nums = [n for n in selected if n <= 19]
+            if small_nums:
+                worst_small = min(small_nums, key=lambda x: scores.get(x, 0))
+                selected.remove(worst_small)
+                large_pool = [n for n in range(20, 40) if n not in selected and n not in exclude_set]
+                if large_pool:
+                    best_large = max(large_pool, key=lambda x: scores.get(x, 0))
+                    selected.append(best_large)
+        
+        return sorted(selected)[:5]
     
-    # 如果過濾後不足5個號碼，從剩餘熱門號碼中补充
-    if len(filtered_numbers) < 5:
-        remaining_hot = [num for num in hot_numbers if num in recent_3_numbers]
-        # 按頻率排序取最高頻率的
-        remaining_hot_sorted = sorted(remaining_hot, key=lambda x: frequency.get(x, 0), reverse=True)
-        filtered_numbers.extend(remaining_hot_sorted[:5 - len(filtered_numbers)])
+    # 產生第一組預測
+    prediction_set1 = generate_balanced_prediction(recent_3_numbers)
     
-    # 從過濾後的號碼中隨機選擇5個（不加權）
-    import random
-    final_pool = filtered_numbers[:]  # 複製一份避免修改原始列表
-    random.shuffle(final_pool)
-    prediction_set1 = sorted(final_pool[:5])
+    # 產生第二組預測（排除第一組已選的號碼，增加多樣性）
+    prediction_set2 = generate_balanced_prediction(set(prediction_set1))
     
-    # 產生第二組（再次隨機）
-    random.shuffle(final_pool)
-    prediction_set2 = sorted(final_pool[:5])
+    # 如果第二組與第一組重複太多，重新生成
+    overlap = len(set(prediction_set1) & set(prediction_set2))
+    if overlap >= 3:
+        # 從不同區間選擇
+        prediction_set2 = generate_balanced_prediction()
     
-    # 準備分析資料
-    frequency_analysis = {str(num): count for num, count in sorted(frequency.items(), key=lambda x: x[1], reverse=True)}
+    # 準備詳細分析資料
+    frequency_analysis = {
+        str(num): count for num, count in sorted(frequency.items(), key=lambda x: x[1], reverse=True)
+    }
+    
+    top_10_scores = dict(sorted_scores[:10])
+    top_10_omission = {str(num): omission.get(num, 0) for num in top_10_scores.keys()}
     
     data = {
-        "numbers": ", ".join([str(n).zfill(2) for n in prediction_set1]),  # 第一組
-        "numbers2": ", ".join([str(n).zfill(2) for n in prediction_set2]),  # 第二組
+        "numbers": ", ".join([str(n).zfill(2) for n in prediction_set1]),
+        "numbers2": ", ".join([str(n).zfill(2) for n in prediction_set2]),
         "analysis": {
             "hot_numbers": sorted(hot_numbers),
+            "warm_numbers": sorted(warm_numbers),
+            "cold_numbers": sorted(cold_numbers),
             "recent_3_numbers": sorted(recent_3_numbers),
-            "filtered_numbers": sorted(filtered_numbers),
-            "frequency": frequency_analysis
+            "top_10_scores": top_10_scores,
+            "top_10_omission": top_10_omission,
+            "frequency": frequency_analysis,
+            "odd_even_ratio": f"{odd_even['odd']['ratio']:.2f}:{odd_even['even']['ratio']:.2f}",
+            "range_ratio": f"{range_dist['small']['ratio']:.2f}:{range_dist['large']['ratio']:.2f}",
+            "hot_tails": sorted([(k, v) for k, v in tail_freq.items()], key=lambda x: x[1], reverse=True)[:3]
         }
     }
     
     return ApiResponse(success=True, data=data)
+
 
 
 def generate_prediction_sets(frequent_numbers: List[int], frequency: dict, sorted_simulation: List[tuple]) -> List[str]:
