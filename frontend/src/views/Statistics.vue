@@ -69,6 +69,22 @@
     </div>
 
     <div class="card">
+      <h2>📊 按出現次數排序</h2>
+      
+      <div v-if="hasFrequency" class="frequency-sorted-list">
+        <div 
+          v-for="item in numbersByFrequency" 
+          :key="item.number"
+          class="freq-sorted-item"
+        >
+          <span class="freq-number-sorted">{{ String(item.number).padStart(2, '0') }}</span>
+          <span class="freq-count-sorted">{{ item.count }}次</span>
+        </div>
+      </div>
+      <div v-else class="loading">載入中...</div>
+    </div>
+
+    <div class="card">
       <h2>📅 最近3期開獎號碼</h2>
       
       <div v-if="latestResults.length > 0" class="latest-results-list">
@@ -164,7 +180,7 @@ const hotNumbers = computed(() => {
     }
   }
   console.log('計算熱門號碼:', nums)
-  return nums.sort((a, b) => frequency.value[b] - frequency.value[a])
+  return nums.sort((a, b) => a - b)
 })
 
 // 普通號碼 (2-3次)
@@ -176,7 +192,7 @@ const normalNumbers = computed(() => {
     }
   }
   console.log('計算普通號碼:', nums)
-  return nums.sort((a, b) => frequency.value[b] - frequency.value[a])
+  return nums.sort((a, b) => a - b)
 })
 
 // 冷門號碼 (0-1次)
@@ -188,7 +204,18 @@ const coldNumbers = computed(() => {
     }
   }
   console.log('計算冷門號碼:', nums)
-  return nums.sort((a, b) => frequency.value[a] - frequency.value[b])
+  return nums.sort((a, b) => a - b)
+})
+
+// 按出現次數排序的號碼列表
+const numbersByFrequency = computed(() => {
+  const nums = []
+  for (let i = 1; i <= 39; i++) {
+    if (frequency.value[i] > 0) {
+      nums.push({ number: i, count: frequency.value[i] })
+    }
+  }
+  return nums.sort((a, b) => b.count - a.count)
 })
 
 onMounted(() => {
@@ -359,5 +386,31 @@ watchEffect(() => {
 .no-data {
   color: #999;
   font-style: italic;
+}
+
+.frequency-sorted-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.freq-sorted-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.freq-number-sorted {
+  font-weight: bold;
+  color: #333;
+}
+
+.freq-count-sorted {
+  color: #666;
+  font-size: 12px;
 }
 </style>
