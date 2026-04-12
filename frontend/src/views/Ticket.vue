@@ -41,7 +41,29 @@
           </div>
         </div>
 
-        <!-- 過濾後可供預測的號碼 -->
+        <!-- 最近三期開出號碼 -->
+        <div class="ticket-section" v-if="latest3Results.length > 0">
+          <h3>📋 最近三期開出號碼</h3>
+          <div class="latest-results">
+            <div 
+              v-for="(result, index) in latest3Results" 
+              :key="result.period"
+              class="result-row"
+            >
+              <div class="result-period">第 {{ result.period }} 期</div>
+              <div class="result-numbers">
+                <span 
+                  v-for="num in formatNumbers(result.numbers)" 
+                  :key="num"
+                  class="number-ball"
+                >
+                  {{ num }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="ticket-section" v-if="store.prediction?.analysis?.filtered_numbers">
           <h3>✅ 過濾後可供預測的號碼</h3>
           <div class="number-grid">
