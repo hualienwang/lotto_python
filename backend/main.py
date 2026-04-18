@@ -499,13 +499,12 @@ def get_ml_prediction(session: Session = Depends(get_session)):
 
     weights = {}
     for num in range(1, 40):
-        if num not in recent_3_numbers:
-            freq = frequency.get(num, 0)
-            miss = missing_days.get(num, 50)
-            if freq > 0:
-                weights[num] = calculate_weight(freq, miss)
-            else:
-                weights[num] = calculate_weight(0, miss) * 0.5
+        freq = frequency.get(num, 0)
+        miss = missing_days.get(num, 50)
+        if freq > 0:
+            weights[num] = calculate_weight(freq, miss)
+        else:
+            weights[num] = calculate_weight(0, miss) * 0.5
 
     total_weight = sum(weights.values())
     probabilities = {num: w / total_weight for num, w in weights.items()}
@@ -513,33 +512,25 @@ def get_ml_prediction(session: Session = Depends(get_session)):
     numbers_list = list(probabilities.keys())
     probs_list = list(probabilities.values())
 
-    nums_pool1 = [n for n in numbers_list if n not in recent_3_numbers]
-    probs_pool1 = [probabilities.get(n, 0.01) for n in nums_pool1]
+    nums_pool1 = list(numbers_list)
+    probs_pool1 = list(probs_list)
 
-    def select_numbers(
-        exclude: set = None, pool: list = None, pool_weights: list = None
-    ) -> List[int]:
-        if exclude is None:
-            exclude = set()
+    def select_numbers(pool: list = None, pool_weights: list = None) -> List[int]:
         if pool is None:
-            pool = numbers_list
+            pool = nums_pool1
             pool_weights = probs_pool1
-        available = [n for n in pool if n not in exclude]
-        available_weights = [pool_weights[pool.index(n)] for n in available]
-        selected = set(random.choices(available, weights=available_weights, k=5))
+        selected = set(random.choices(pool, weights=pool_weights, k=5))
         while len(selected) < 5:
-            remaining = [n for n in available if n not in selected]
+            remaining = [n for n in pool if n not in selected]
             if remaining:
                 selected.add(random.choice(remaining))
             else:
                 break
         return sorted(selected)
 
-    prediction_set1 = select_numbers(recent_3_numbers)
+    prediction_set1 = select_numbers()
 
-    prediction_set2 = select_numbers(
-        recent_3_numbers | set(prediction_set1), nums_pool1, probs_pool1
-    )
+    prediction_set2 = select_numbers()
 
     frequency_analysis = {
         str(num): count
