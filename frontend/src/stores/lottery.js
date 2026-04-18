@@ -6,6 +6,7 @@ export const useLotteryStore = defineStore('lottery', {
     latestResult: null,
     results: [],
     prediction: null,
+    mlPrediction: null,
     statistics: null,
     loading: false,
     error: null
@@ -49,6 +50,21 @@ export const useLotteryStore = defineStore('lottery', {
         const res = await lotteryApi.getPrediction()
         if (res.success) {
           this.prediction = res.data
+        }
+      } catch (err) {
+        this.error = err.message
+      } finally {
+        this.loading = false
+      }
+    },
+
+    async fetchMLPrediction() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await lotteryApi.getMLPrediction()
+        if (res.success) {
+          this.mlPrediction = res.data
         }
       } catch (err) {
         this.error = err.message

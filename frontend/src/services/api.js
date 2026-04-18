@@ -38,6 +38,11 @@ export const lotteryApi = {
   getPrediction() {
     return api.get('/prediction')
   },
+
+  // 取得 ML 預測
+  getMLPrediction() {
+    return api.get('/prediction/ml')
+  },
   
   // 儲存預測
   savePrediction(data) {

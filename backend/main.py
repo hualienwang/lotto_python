@@ -447,6 +447,119 @@ def get_prediction(session: Session = Depends(get_session)):
     return ApiResponse(success=True, data=data)
 
 
+@app.get("/api/prediction/ml", response_model=ApiResponse)
+def get_ml_prediction(session: Session = Depends(get_session)):
+    """
+    ML 預測號碼 - 使用加權隨機選號策略
+
+    策略：
+    1. 分析最近50期號碼出現頻率
+    2. 計算每個號碼的權重（出現次數 + 遺漏期數）
+    3. 使用加權隨機選擇 5 個號碼
+    4. 排除最近3期已開出的號碼
+    """
+    import random
+    import math
+
+    results = session.exec(
+        select(LotteryResult).order_by(LotteryResult.id.desc()).limit(50)
+    ).all()
+
+    if not results:
+        return ApiResponse(success=False, message="尚無足夠資料進行預測")
+
+    analyzer = LotteryAnalyzer(results)
+
+    frequency = analyzer.get_frequency_analysis(50)
+
+    recent_3_results = session.exec(
+        select(LotteryResult).order_by(LotteryResult.id.desc()).limit(3)
+    ).all()
+
+    recent_3_numbers = set()
+    for r in recent_3_results:
+        nums = analyzer.parse_numbers(r.numbers)
+        recent_3_numbers.update(nums)
+
+    missing_days = {}
+    all_numbers = set(range(1, 40))
+    for num in all_numbers:
+        last_seen = None
+        for i, r in enumerate(results):
+            nums = analyzer.parse_numbers(r.numbers)
+            if num in nums:
+                last_seen = i
+                break
+        missing_days[num] = last_seen if last_seen is not None else 50
+
+    def calculate_weight(freq: int, missing: int) -> float:
+        freq_weight = freq * 2
+        missing_weight = math.log(missing + 1) * 1.5
+        return freq_weight + missing_weight
+
+    weights = {}
+    for num in range(1, 40):
+        if num not in recent_3_numbers:
+            freq = frequency.get(num, 0)
+            miss = missing_days.get(num, 50)
+            if freq > 0:
+                weights[num] = calculate_weight(freq, miss)
+            else:
+                weights[num] = calculate_weight(0, miss) * 0.5
+
+    total_weight = sum(weights.values())
+    probabilities = {num: w / total_weight for num, w in weights.items()}
+
+    numbers_list = list(probabilities.keys())
+    probs_list = list(probabilities.values())
+
+    nums_pool1 = [n for n in numbers_list if n not in recent_3_numbers]
+    probs_pool1 = [probabilities.get(n, 0.01) for n in nums_pool1]
+
+    def select_numbers(
+        exclude: set = None, pool: list = None, pool_weights: list = None
+    ) -> List[int]:
+        if exclude is None:
+            exclude = set()
+        if pool is None:
+            pool = numbers_list
+            pool_weights = probs_pool1
+        available = [n for n in pool if n not in exclude]
+        available_weights = [pool_weights[pool.index(n)] for n in available]
+        selected = set(random.choices(available, weights=available_weights, k=5))
+        while len(selected) < 5:
+            remaining = [n for n in available if n not in selected]
+            if remaining:
+                selected.add(random.choice(remaining))
+            else:
+                break
+        return sorted(selected)
+
+    prediction_set1 = select_numbers(recent_3_numbers)
+
+    prediction_set2 = select_numbers(
+        recent_3_numbers | set(prediction_set1), nums_pool1, probs_pool1
+    )
+
+    frequency_analysis = {
+        str(num): count
+        for num, count in sorted(frequency.items(), key=lambda x: x[1], reverse=True)
+    }
+
+    data = {
+        "numbers": ", ".join([str(n).zfill(2) for n in prediction_set1]),
+        "numbers2": ", ".join([str(n).zfill(2) for n in prediction_set2]),
+        "analysis": {
+            "hot_numbers": [n for n in range(1, 40) if frequency.get(n, 0) >= 4],
+            "recent_3_numbers": sorted(recent_3_numbers),
+            "filtered_numbers": [n for n in range(1, 40) if n not in recent_3_numbers],
+            "frequency": frequency_analysis,
+        },
+    }
+
+    return ApiResponse(success=True, data=data)
+
+
 def generate_prediction_sets(
     frequent_numbers: List[int], frequency: dict, sorted_simulation: List[tuple]
 ) -> List[str]:

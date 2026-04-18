@@ -58,6 +58,61 @@
       </div>
     </div>
 
+    <!-- ML 預測區塊 -->
+    <div class="card">
+      <h2>🤖 ML 預測</h2>
+      <div class="prediction-box">
+        <p>使用加權隨機選號策略，分析最近50期號碼出現頻率與遺漏期數，計算權重後隨機選擇5個號碼</p>
+        
+        <template v-if="store.loading">
+          <div class="loading">載入中...</div>
+        </template>
+        <template v-else-if="!store.mlPrediction">
+          <div class="loading">
+            <p>請點擊下方「開始 ML 預測」按鈕產生預測號碼</p>
+            <button class="btn btn-ml" @click="getNewMLPrediction">開始 ML 預測</button>
+          </div>
+        </template>
+        <template v-else-if="store.mlPrediction && mlPredictionNumbers.length > 0">
+          <div class="prediction-numbers">
+            <div class="prediction-sets">
+              <div class="prediction-set">
+                <div class="set-label">🤖 ML 預測號碼 A</div>
+                <div class="numbers">
+                  <span 
+                    v-for="num in mlPredictionNumbers" 
+                    :key="'ml-a-' + num" 
+                    class="number number-ml-a"
+                  >
+                    {{ num }}
+                  </span>
+                </div>
+              </div>
+              <div class="prediction-set">
+                <div class="set-label">🤖 ML 預測號碼 B</div>
+                <div class="numbers">
+                  <span 
+                    v-for="num in mlPredictionNumbers2" 
+                    :key="'ml-b-' + num" 
+                    class="number number-ml-b"
+                  >
+                    {{ num }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="button-group">
+              <button class="btn btn-ml" @click="getNewMLPrediction">重新 ML 預測</button>
+            </div>
+          </div>
+        </template>
+        <template v-else>
+          <div class="loading">載入 ML 預測中...</div>
+        </template>
+      </div>
+    </div>
+
     <!-- 分析結果區塊 -->
     <div class="card" v-if="store.prediction?.analysis">
       <h2>📊 預測分析</h2>
@@ -144,6 +199,17 @@ const filteredNumbers = computed(() => {
   return store.prediction?.analysis?.filtered_numbers || []
 })
 
+// ML 預測號碼
+const mlPredictionNumbers = computed(() => {
+  if (!store.mlPrediction?.numbers) return []
+  return store.mlPrediction.numbers.split(',').map(n => n.trim())
+})
+
+const mlPredictionNumbers2 = computed(() => {
+  if (!store.mlPrediction?.numbers2) return []
+  return store.mlPrediction.numbers2.split(',').map(n => n.trim())
+})
+
 // 取得號碼出現次數
 const getFrequencyCount = (num) => {
   return store.prediction?.analysis?.frequency?.[num] || 0
@@ -152,6 +218,11 @@ const getFrequencyCount = (num) => {
 const getNewPrediction = () => {
   message.value = ''
   store.fetchPrediction()
+}
+
+const getNewMLPrediction = () => {
+  message.value = ''
+  store.fetchMLPrediction()
 }
 
 const saveCurrentPrediction = async () => {
@@ -252,5 +323,21 @@ onMounted(() => {
 
 .number-filtered {
   background: linear-gradient(135deg, #51cf66 0%, #40c057 100%);
+}
+
+.number-ml-a {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.number-ml-b {
+  background: linear-gradient(135deg, #ee0979 0%, #ff6a00 100%);
+}
+
+.btn-ml {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.btn-ml:hover {
+  background: linear-gradient(135deg, #0d8a76 0%, #2fd36a 100%);
 }
 </style>
