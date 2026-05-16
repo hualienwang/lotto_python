@@ -43,14 +43,26 @@
             <!-- 日期標題行 -->
             <tr>
               <th style="color: black; background-color: #f5f5f5;">日期</th>
-              <th v-for="n in 39" :key="n" style="color: black; background-color: #f5f5f5;">{{ String(n).padStart(2, '0') }}</th>
+              <th
+                v-for="n in 39"
+                :key="n"
+                class="number-header marker-cell"
+                :class="{ 'marked-number': isMarked(n) }"
+                @click="toggleMarker(n)"
+                :title="isMarked(n) ? `取消標注 ${String(n).padStart(2, '0')}` : `標注 ${String(n).padStart(2, '0')}`"
+              >
+                {{ String(n).padStart(2, '0') }}
+              </th>
             </tr>
             <tr v-for="result in store.results" :key="result.id">
               <td><div align="center" style="color: white;">{{ formatTaiwanDate(result.draw_date) }}</div></td>
               <td 
                 v-for="n in 39" 
                 :key="n"
-                :class="{ 'hit-number': isHitNumber(result.numbers, n) }"
+                :class="{
+                  'hit-number': isHitNumber(result.numbers, n),
+                  'marked-column': isMarked(n)
+                }"
               >
                 {{ isHitNumber(result.numbers, n) ? n : '' }}
               </td>
@@ -213,10 +225,28 @@ onMounted(async () => {
   font-weight: bold;
 }
 
+.history-table .number-header {
+  color: black;
+  background-color: #f5f5f5;
+}
+
+.history-table .number-header.marked-number {
+  background-color: #FF0000;
+  color: white;
+}
+
 .history-table .hit-number {
   background-color: #ff6b6b;
   color: white;
   font-weight: bold;
+}
+
+.history-table td.marked-column {
+  background-color: #ffe8e8;
+}
+
+.history-table td.hit-number.marked-column {
+  background-color: #d90000;
 }
 
 .history-table .marker-cell {
