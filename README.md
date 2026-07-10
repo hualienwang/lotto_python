@@ -121,6 +121,34 @@ npm run build
 
 產生的檔案會在 `dist/` 目錄中
 
+## 部署到 Vercel
+
+本專案支援部署到 Vercel。由於使用了 Python 後端和 Vue 前端，我們採用了 Vercel Functions 和 Vercel Static 的混合部署方式。
+
+### 部署步驟
+
+1. **安裝 Vercel CLI** (可選):
+   ```bash
+   npm install -g vercel
+   ```
+
+2. **登入並部署**:
+   ```bash
+   vercel
+   ```
+
+3. **Vercel 控制台設定**:
+   - **Framework Preset**: 選擇 `Other` (或讓 Vercel 自動偵測)
+   - **Root Directory**: `./` (專案根目錄)
+   - **Build Command**: `cd frontend && npm install && npm run build`
+   - **Output Directory**: `frontend/dist`
+
+### 注意事項 (SQLite 限制)
+
+由於 Vercel Functions 是無狀態的 (Stateless) 且檔案系統在運行時是唯讀的（或暫時性的）：
+- **資料持久性**: SQLite 資料庫 (`lotto.db`) 在部署時會被打包進去。您可以讀取資料，但任何寫入操作（如新增開獎結果、儲存預測）在 Function 重啟後都會遺失。
+- **解決方案**: 建議在生產環境中使用 **Vercel Postgres** 或 **Supabase**。本專案的 `backend/database.py` 已配置為優先讀取 `DATABASE_URL` 環境變數。
+
 ## API 端點
 
 | 端點 | 方法 | 說明 |
