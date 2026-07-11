@@ -40,6 +40,13 @@
       </button>
     </form>
     
+    <div class="sync-row">
+      <button type="button" class="btn sync-btn" @click="syncRemoteResults" :disabled="store.loading">
+        {{ store.loading ? '同步中...' : '下載官方開獎資料' }}
+      </button>
+      <span v-if="syncMessage" :class="syncClass">{{ syncMessage }}</span>
+    </div>
+
     <div v-if="message" :class="messageClass" style="margin-top: 15px;">
       {{ message }}
     </div>
@@ -59,6 +66,9 @@ const form = reactive({
   draw_date: '',
   numbers: ''
 })
+
+const syncMessage = ref('')
+const syncClass = ref('')
 
 const initPeriod = () => {
   store.fetchLatestResult().then(() => {
@@ -103,4 +113,21 @@ const submitResult = async () => {
     messageClass.value = 'error'
   }
 }
+
+  const syncRemoteResults = async () => {
+    syncMessage.value = ''
+    syncClass.value = ''
+    try {
+      const res = await store.syncResults()
+      if (res.success) {
+        syncMessage.value = res.message || '官方開獎資料同步完成'
+        syncClass.value = 'success'
+        await store.fetchLatestResult()
+        await store.fetchResults()
+      }
+    } catch (err) {
+      syncMessage.value = '同步失敗：' + (err.response?.data?.message || err.message)
+      syncClass.value = 'error'
+    }
+  }
 </script>

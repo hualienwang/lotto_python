@@ -33,6 +33,11 @@ export const lotteryApi = {
   addResult(data) {
     return api.post('/results', null, { params: data })
   },
+
+  // 下載並同步官方開獎資料
+  syncResults() {
+    return api.post('/results/sync')
+  },
   
   // 取得預測
   getPrediction() {

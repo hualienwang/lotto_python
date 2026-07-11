@@ -105,6 +105,24 @@ export const useLotteryStore = defineStore('lottery', {
         this.loading = false
       }
     },
+
+    async syncResults() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await lotteryApi.syncResults()
+        if (res.success) {
+          await this.fetchLatestResult()
+          await this.fetchResults()
+        }
+        return res
+      } catch (err) {
+        this.error = err.message
+        throw err
+      } finally {
+        this.loading = false
+      }
+    },
     
     async savePrediction(data) {
       this.loading = true

@@ -7,6 +7,7 @@ from typing import List, Optional
 import json
 import os
 import random
+import requests
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -75,6 +76,51 @@ def load_initial_data(session: Session):
 
         session.commit()
         print(f"已載入 {len(data['draws'])} 筆初始資料")
+
+
+REMOTE_LOTTERY_API = "https://api.taiwanlottery.com/TLCAPIWeB/Lottery/LastNumber"
+LOTTERY_539_GAME_CODE = 1197
+
+
+def normalize_draw_date(raw_date: str) -> str:
+    if not raw_date:
+        return ""
+    return raw_date.split(" ")[0]
+
+
+def fetch_remote_lotto_data() -> List[dict]:
+    try:
+        response = requests.get(
+            REMOTE_LOTTERY_API,
+            timeout=15,
+            verify=False,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"遠端開獎資料抓取失敗: {exc}")
+
+    if payload.get("rtCode") != 0 or not payload.get("content"):
+        raise HTTPException(status_code=502, detail="遠端開獎資料格式不正確")
+
+    items = payload["content"].get("lastNumberList", [])
+    results = []
+    for item in items:
+        if item.get("gameCode") != LOTTERY_539_GAME_CODE:
+            continue
+
+        period = str(item.get("period", "")).strip()
+        draw_date = normalize_draw_date(item.get("drawDate", ""))
+        raw_numbers = item.get("lotNumber") or item.get("drawNumber") or []
+
+        if not period or not raw_numbers:
+            continue
+
+        numbers = ", ".join([str(int(n)).zfill(2) for n in raw_numbers])
+        results.append({"period": period, "draw_date": draw_date, "numbers": numbers})
+
+    return results
 
 
 # ============ 開獎結果 API ============
@@ -164,6 +210,37 @@ def add_result(
     session.commit()
 
     return ApiResponse(success=True, message="開獎結果已新增", data={"id": result.id})
+
+
+@app.post("/api/results/sync", response_model=ApiResponse)
+def sync_results(session: Session = Depends(get_session)):
+    """從官方 API 同步最新開獎資料，僅儲存新筆數"""
+    remote_results = fetch_remote_lotto_data()
+    if not remote_results:
+        return ApiResponse(success=False, message="未取得任何 539 開獎資料")
+
+    existing_periods = set(session.exec(select(LotteryResult.period)).all())
+    new_count = 0
+    for item in remote_results:
+        if item["period"] in existing_periods:
+            continue
+
+        result = LotteryResult(
+            period=item["period"],
+            numbers=item["numbers"],
+            draw_date=item["draw_date"],
+        )
+        session.add(result)
+        new_count += 1
+
+    if new_count:
+        session.commit()
+
+    return ApiResponse(
+        success=True,
+        message=f"已匯入 {new_count} 筆新開獎資料",
+        data={"new_count": new_count},
+    )
 
 
 # ============ 預測 API ============
