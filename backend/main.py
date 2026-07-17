@@ -79,16 +79,50 @@ def load_initial_data(session: Session):
 
 
 REMOTE_LOTTERY_API = "https://api.taiwanlottery.com/TLCAPIWeB/Lottery/LastNumber"
+REMOTE_DAILY_539_API = "https://api.taiwanlottery.com/TLCAPIWeB/Lottery/Daily539Result"
 LOTTERY_539_GAME_CODE = 1197
 
 
 def normalize_draw_date(raw_date: str) -> str:
     if not raw_date:
         return ""
-    return raw_date.split(" ")[0]
+    return raw_date.replace("T", " ").split(" ")[0]
 
 
-def fetch_remote_lotto_data() -> List[dict]:
+def month_range(start_date: str, end_date: Optional[datetime] = None) -> List[str]:
+    start = datetime.strptime(start_date[:7], "%Y-%m")
+    end = end_date or datetime.now()
+    months = []
+
+    current = start
+    while current <= end:
+        months.append(current.strftime("%Y-%m"))
+        if current.month == 12:
+            current = current.replace(year=current.year + 1, month=1)
+        else:
+            current = current.replace(month=current.month + 1)
+
+    return months
+
+
+def format_remote_lotto_item(item: dict) -> Optional[dict]:
+    period = str(item.get("period", "")).strip()
+    draw_date = normalize_draw_date(item.get("lotteryDate") or item.get("drawDate") or "")
+    raw_numbers = (
+        item.get("drawNumberSize")
+        or item.get("lotNumber")
+        or item.get("drawNumber")
+        or []
+    )
+
+    if not period or not draw_date or not raw_numbers:
+        return None
+
+    numbers = ", ".join([str(int(n)).zfill(2) for n in raw_numbers])
+    return {"period": period, "draw_date": draw_date, "numbers": numbers}
+
+
+def fetch_latest_remote_lotto_data() -> List[dict]:
     try:
         response = requests.get(
             REMOTE_LOTTERY_API,
@@ -104,24 +138,82 @@ def fetch_remote_lotto_data() -> List[dict]:
     if payload.get("rtCode") != 0 or not payload.get("content"):
         raise HTTPException(status_code=502, detail="遠端開獎資料格式不正確")
 
-    items = payload["content"].get("lastNumberList", [])
     results = []
-    for item in items:
+    for item in payload["content"].get("lastNumberList", []):
         if item.get("gameCode") != LOTTERY_539_GAME_CODE:
             continue
 
-        period = str(item.get("period", "")).strip()
-        draw_date = normalize_draw_date(item.get("drawDate", ""))
-        raw_numbers = item.get("lotNumber") or item.get("drawNumber") or []
-
-        if not period or not raw_numbers:
-            continue
-
-        numbers = ", ".join([str(int(n)).zfill(2) for n in raw_numbers])
-        results.append({"period": period, "draw_date": draw_date, "numbers": numbers})
+        result = format_remote_lotto_item(item)
+        if result:
+            results.append(result)
 
     return results
 
+
+def fetch_remote_lotto_data(session: Optional[Session] = None) -> List[dict]:
+    should_close_session = session is None
+    session = session or Session(engine)
+
+    try:
+        latest_result = session.exec(
+            select(LotteryResult).order_by(
+                LotteryResult.draw_date.desc(), LotteryResult.period.desc()
+            )
+        ).first()
+        existing_periods = set(session.exec(select(LotteryResult.period)).all())
+    finally:
+        if should_close_session:
+            session.close()
+
+    if not latest_result:
+        return fetch_latest_remote_lotto_data()
+
+    latest_period = str(latest_result.period)
+    latest_draw_date = latest_result.draw_date
+    results_by_period = {}
+
+    for month in month_range(latest_draw_date):
+        try:
+            response = requests.get(
+                REMOTE_DAILY_539_API,
+                params={
+                    "month": month,
+                    "endMonth": month,
+                    "pageNum": 1,
+                    "pageSize": 200,
+                },
+                timeout=15,
+                verify=False,
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"遠端開獎資料抓取失敗: {exc}")
+
+        if payload.get("rtCode") != 0 or not payload.get("content"):
+            raise HTTPException(status_code=502, detail="遠端開獎資料格式不正確")
+
+        for item in payload["content"].get("daily539Res", []):
+            result = format_remote_lotto_item(item)
+            if not result:
+                continue
+
+            if result["period"] in existing_periods:
+                continue
+
+            if result["draw_date"] < latest_draw_date:
+                continue
+
+            if result["draw_date"] == latest_draw_date and result["period"] <= latest_period:
+                continue
+
+            results_by_period[result["period"]] = result
+
+    return sorted(
+        results_by_period.values(),
+        key=lambda item: (item["draw_date"], int(item["period"])),
+    )
 
 # ============ 開獎結果 API ============
 
@@ -215,7 +307,7 @@ def add_result(
 @app.post("/api/results/sync", response_model=ApiResponse)
 def sync_results(session: Session = Depends(get_session)):
     """從官方 API 同步最新開獎資料，僅儲存新筆數"""
-    remote_results = fetch_remote_lotto_data()
+    remote_results = fetch_remote_lotto_data(session)
     if not remote_results:
         return ApiResponse(success=False, message="未取得任何 539 開獎資料")
 
