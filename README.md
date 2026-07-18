@@ -138,10 +138,19 @@ npm run build
    ```
 
 3. **Vercel 控制台設定**:
+   
    - **Framework Preset**: 選擇 `Other` (或讓 Vercel 自動偵測)
    - **Root Directory**: `./` (專案根目錄)
    - **Build Command**: `cd frontend && npm install && npm run build`
    - **Output Directory**: `frontend/dist`
+
+#####     build: cd backend && pip install --upgrade pip && pip install -r requirements.txt && cd ../frontend && npm install && npm run build
+
+#####     start command: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT && cd ../frontend && npm run preview
+
+
+
+
 
 ### 注意事項 (SQLite 限制)
 
